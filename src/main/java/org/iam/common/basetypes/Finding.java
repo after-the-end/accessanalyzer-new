@@ -1,97 +1,72 @@
 package org.iam.common.basetypes;
 
-import java.util.Objects;
-import java.util.Set;
+import org.iam.common.apis.EncodedAPI;
+import org.iam.common.apis.GrammarlyAPI;
+import org.iam.common.vars.VarKey;
+
+import java.util.*;
 import java.util.stream.Collectors;
 
-public class Finding {
+public class Finding<T> implements GrammarlyAPI<T> {
 
-    protected Set<Principal> principal = null;
+    private Map<VarKey, String> finding = null;
+    private T encodedExpr = null;
 
-    protected Set<String> action = null;
-
-    protected Set<String> resource = null;
-
-    /**
-     * Necessary rules to follow for future development:
-     * Every condition only have one key-value pair.
-     */
-    protected Set<Condition> condition = null;
-
-    public Finding() {
+    public Finding(Policy<T> policy) {
+        this.finding = new HashMap<>();
+        for (VarKey key : policy.keySet()) {
+            // all the key of the root finding get a '.*' value
+            this.finding.putIfAbsent(key, ".*");
+        }
     }
 
-    public Finding(Finding other) {
-        this.principal = other.principal;
-        this.action = other.action;
-        this.resource = other.resource;
-        this.condition = other.condition == null ? null : other.condition.stream()
-                .map(Condition::new)
-                .collect(Collectors.toSet());
+    public Finding(Finding<T> other) {
+        this.finding = other.finding;
+        this.encodedExpr = other.encodedExpr;
     }
 
-    public Finding(Set<Principal> principal, Set<String> action, Set<String> resource, Set<Condition> condition) {
-        this.principal = principal;
-        this.action = action;
-        this.resource = resource;
-        this.condition = condition;
+    public Finding(Map<VarKey, String> finding) {
+        this.finding = finding;
+        this.encodedExpr = null;
     }
 
-    public Set<Principal> getPrincipal() {
-        return principal;
+    public Map<VarKey, String> getFinding() {
+        return finding;
     }
 
-    public void setPrincipal(Set<Principal> principal) {
-        this.principal = principal;
-    }
+    @Override
+    public T encode(EncodedAPI<T> helper) {
+        if (this.finding == null || this.finding.isEmpty()) {
+            return helper.mkFalse();
+        }
 
-    public Set<String> getAction() {
-        return action;
-    }
-
-    public void setAction(Set<String> action) {
-        this.action = action;
-    }
-
-    public Set<String> getResource() {
-        return resource;
-    }
-
-    public void setResource(Set<String> resource) {
-        this.resource = resource;
-    }
-
-    public Set<Condition> getCondition() {
-        return condition;
-    }
-
-    public void setCondition(Set<Condition> condition) {
-        this.condition = condition;
+        if (this.encodedExpr == null) {
+            List<T> exprs = this.finding.entrySet().stream()
+                    .map(e -> helper.mkReMatch(helper.mkStringConst(e.getKey().toString()), e.getValue()))
+                    .toList();
+            this.encodedExpr = helper.and(exprs);
+        }
+        return this.encodedExpr;
     }
 
     @Override
     public String toString() {
-        return "Findings{" +
-                "principal=" + principal.toString() +
-                ", action=" + action +
-                ", resource=" + resource +
-                ", condition=" + condition +
+        return "Finding{" +
+                "finding=" + finding.entrySet().stream()
+                .map(e -> e.getKey().toString() + "=" + e.getValue())
+                .collect(Collectors.joining(", ")) +
                 '}';
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Finding finding = (Finding) o;
-        return Objects.equals(principal, finding.principal) &&
-                Objects.equals(action, finding.action) &&
-                Objects.equals(resource, finding.resource) &&
-                Objects.equals(condition, finding.condition);
+        if (!(o instanceof Finding<?> f)) return false;
+        return Objects.equals(finding, f.finding);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(principal, action, resource, condition);
+        return Objects.hash(finding);
     }
 }
