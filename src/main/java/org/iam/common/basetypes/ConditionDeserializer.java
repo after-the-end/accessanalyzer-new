@@ -9,13 +9,13 @@ import org.iam.common.vars.VarOperator;
 import java.io.IOException;
 import java.util.*;
 
-public class ConditionDeserializer extends JsonDeserializer<Set<Condition>> {
+public class ConditionDeserializer extends JsonDeserializer<Set<Condition<?>>> {
 
     @Override
-    public Set<Condition> deserialize(JsonParser jp, DeserializationContext context)
+    public Set<Condition<?>> deserialize(JsonParser jp, DeserializationContext context)
             throws IOException {
         JsonNode node = jp.getCodec().readTree(jp);
-        Set<Condition> conditions = new HashSet<>();
+        Set<Condition<?>> conditions = new HashSet<>();
         Iterator<Map.Entry<String, JsonNode>> operators = node.fields();
 
         while (operators.hasNext()) {
@@ -42,9 +42,13 @@ public class ConditionDeserializer extends JsonDeserializer<Set<Condition>> {
                 }
                 keyToValues.put(key, valueSet);
             }
-            Condition condition = new Condition(VarOperator.fromString(operator), keyToValues);
+            Condition<?> condition = new Condition<>(VarOperator.fromString(operator), keyToValues);
             conditions.add(condition);
         }
         return conditions;
+    }
+
+    private String formatRegex(String source) {
+        return source.replace("*", ".*").replace("?", ".");
     }
 }
