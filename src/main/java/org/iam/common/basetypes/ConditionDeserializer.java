@@ -47,8 +47,4 @@ public class ConditionDeserializer extends JsonDeserializer<Set<Condition<?>>> {
         }
         return conditions;
     }
-
-    private String formatRegex(String source) {
-        return source.replace("*", ".*").replace("?", ".");
-    }
 }

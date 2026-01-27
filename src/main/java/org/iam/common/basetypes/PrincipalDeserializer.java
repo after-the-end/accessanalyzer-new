@@ -29,19 +29,14 @@ public class PrincipalDeserializer extends JsonDeserializer<Map<VarKey, Set<Stri
 
             if (arrayNode.isArray()) {
                 for (JsonNode valueNode : arrayNode) {
-                    values.add(formatRegex(valueNode.asText()));
+                    values.add(valueNode.asText());
                 }
             } else {
-                values.add(formatRegex(arrayNode.asText()));
+                values.add(arrayNode.asText());
             }
 
             principals.put(prpKey, values);
         }
         return principals;
-    }
-
-    private String formatRegex(String source) {
-        if (source == null) return null;
-        return source.replace("*", ".*").replace("?", ".");
     }
 }
