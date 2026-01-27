@@ -8,6 +8,12 @@ import java.util.List;
  */
 public interface EncodedAPI<T> {
 
+    T mkFalse();
+
+    T mkTrue();
+
+    T mkReMatch(String key, String regex);
+
     T and(List<T> exprs);
 
     T and(T... exprs);

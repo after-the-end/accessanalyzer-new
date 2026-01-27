@@ -1,12 +1,10 @@
 package org.iam.common;
 
-import com.microsoft.z3.BoolExpr;
-import com.microsoft.z3.Context;
-import com.microsoft.z3.Solver;
-import com.microsoft.z3.Status;
+import com.microsoft.z3.*;
 import org.iam.common.apis.EncodedAPI;
 import org.iam.common.apis.GrammarlyAPI;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -20,8 +18,62 @@ public class Z3Encoder implements EncodedAPI<BoolExpr> {
         this.solver = ctx.mkSolver();
     }
 
-    public Context getContext() {
-        return ctx;
+    @Override
+    public BoolExpr mkTrue() {
+        return ctx.mkTrue();
+    }
+
+    @Override
+    public BoolExpr mkFalse() {
+        return ctx.mkFalse();
+    }
+
+    @Override
+    public BoolExpr mkReMatch(String key, String regex) {
+        if (regex.equals("*")) {
+            return mkTrue();
+        }
+        if (regex.equals("?")) {
+            return ctx.mkNot(ctx.mkEq(ctx.mkConst(key, ctx.getStringSort()), ctx.mkString("")));
+        }
+        return ctx.mkInRe(ctx.mkConst(key, ctx.getStringSort()), mkRegex(regex));
+    }
+
+    @SuppressWarnings("unchecked")
+    private ReExpr<SeqSort<CharSort>> mkRegex(String regex) {
+         if (!regex.contains("?") && !regex.contains("*")) {
+             return ctx.mkToRe(ctx.mkString(regex));
+         }
+
+         int lastOpIndex = -1;
+         List<ReExpr<SeqSort<CharSort>>> regexExprList = new ArrayList<>();
+
+         for (int i = 0; i < regex.length(); i++) {
+             char c = regex.charAt(i);
+             if (c == '?' || c == '*') {
+                 if (i > lastOpIndex + 1) {
+                     String prefix = regex.substring(lastOpIndex + 1, i);
+                     ReExpr<SeqSort<CharSort>> prefixRe = ctx.mkToRe(ctx.mkString(prefix));
+                     regexExprList.add(prefixRe);
+                 }
+                 ReExpr<SeqSort<CharSort>> opRe;
+                 if (c == '?') {
+                     opRe = ctx.mkAllcharRe(ctx.mkReSort(ctx.getStringSort()));
+                 } else { // c == '*'
+                     opRe = ctx.mkFullRe(ctx.mkReSort(ctx.getStringSort()));
+                 }
+                 regexExprList.add(opRe);
+                 lastOpIndex = i;
+             }
+         }
+         if (lastOpIndex < regex.length() - 1) {
+             String suffix = regex.substring(lastOpIndex + 1);
+             ReExpr<SeqSort<CharSort>> suffixRe = ctx.mkToRe(ctx.mkString(suffix));
+             regexExprList.add(suffixRe);
+         }
+         return ctx.mkConcat(
+                 (ReExpr<SeqSort<CharSort>>[]) regexExprList.toArray(ReExpr[]::new)
+         );
     }
 
     @Override

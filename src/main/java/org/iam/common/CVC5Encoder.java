@@ -8,25 +8,82 @@ import io.github.cvc5.TermManager;
 import org.iam.common.apis.EncodedAPI;
 import org.iam.common.apis.GrammarlyAPI;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class CVC5Encoder implements EncodedAPI<Term> {
 
     private final TermManager tm;
     private final Solver solver;
+    private final Map<String, Term> variableCache;
 
     public CVC5Encoder() {
         this.tm = new TermManager();
         this.solver = new Solver(tm);
+        this.variableCache = new HashMap<>();
     }
 
-    public Solver getSolver() {
-        return solver;
+    @Override
+    public Term mkTrue() {
+        return tm.mkTrue();
     }
 
-    public TermManager getTermManager() {
-        return tm;
+    @Override
+    public Term mkFalse() {
+        return tm.mkFalse();
+    }
+
+    @Override
+    public Term mkReMatch(String key, String regex) {
+        if (regex.equals("*")) {
+            return mkTrue();
+        }
+
+        // CVC5 mkConst creates a fresh constant every time.
+        // We use a cache to ensure the same key maps to the same Term object.
+        Term keyConst = variableCache.computeIfAbsent(key, k -> tm.mkConst(tm.getStringSort(), k));
+
+        if (regex.equals("?")) {
+            Term emptyStr = tm.mkString("");
+            return tm.mkTerm(Kind.NOT, tm.mkTerm(Kind.EQUAL, keyConst, emptyStr));
+        }
+        return tm.mkTerm(Kind.STRING_IN_REGEXP, keyConst, mkRegex(regex));
+    }
+
+    private Term mkRegex(String regex) {
+        if (!regex.contains("?") && !regex.contains("*")) {
+            return tm.mkTerm(Kind.STRING_TO_REGEXP, tm.mkString(regex));
+        }
+
+        int lastOpIndex = -1;
+        List<Term> regexExprList = new ArrayList<>();
+
+        for (int i = 0; i < regex.length(); i++) {
+            char c = regex.charAt(i);
+            if (c == '?' || c == '*') {
+                if (i > lastOpIndex + 1) {
+                    String prefix = regex.substring(lastOpIndex + 1, i);
+                    regexExprList.add(tm.mkTerm(Kind.STRING_TO_REGEXP, tm.mkString(prefix)));
+                }
+                Term opRe;
+                if (c == '?') {
+                    opRe = tm.mkTerm(Kind.REGEXP_ALLCHAR);
+                } else { // c == '*'
+                    // .* equivalent
+                    opRe = tm.mkTerm(Kind.REGEXP_STAR, tm.mkTerm(Kind.REGEXP_ALLCHAR));
+                }
+                regexExprList.add(opRe);
+                lastOpIndex = i;
+            }
+        }
+        if (lastOpIndex < regex.length() - 1) {
+            String suffix = regex.substring(lastOpIndex + 1);
+            regexExprList.add(tm.mkTerm(Kind.STRING_TO_REGEXP, tm.mkString(suffix)));
+        }
+        return tm.mkTerm(Kind.REGEXP_CONCAT, regexExprList.toArray(new Term[0]));
     }
 
     @Override

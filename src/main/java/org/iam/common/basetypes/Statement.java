@@ -114,7 +114,7 @@ public class Statement<T> implements GrammarlyAPI<T> {
                                 .toList());
             }
 
-            T allowExpr = helper.and(principalExpr, actionExpr, resourceExpr, conditionExpr);
+            T allowExpr = helper.and(exprs);
             if (this.effect == VarEffect.Allow) {
                 this.cachedExpr = allowExpr;
             } else {
@@ -143,10 +143,8 @@ public class Statement<T> implements GrammarlyAPI<T> {
             return helper.mkTrue();
         }
 
-        T verifier = helper.mkStringConst(key.toString());
-
         List<T> matches = values.stream()
-                .map(value -> helper.mkReMatch(verifier, value))
+                .map(valueStr -> helper.mkReMatch(key.toString(), valueStr))
                 .toList();
         return helper.or(matches);
     }
@@ -160,11 +158,7 @@ public class Statement<T> implements GrammarlyAPI<T> {
         }
 
         List<T> matches = this.action.stream()
-                .map(actionStr -> {
-                    T actionConst = helper.mkStringConst(VarKey.ACTION.toString());
-                    // Here are some problems in the original code.
-                    return helper.mkReMatch(actionConst, actionStr);
-                })
+                .map(actionStr -> helper.mkReMatch(VarKey.ACTION.toString(), actionStr))
                 .toList();
         return helper.or(matches);
     }
@@ -178,10 +172,7 @@ public class Statement<T> implements GrammarlyAPI<T> {
         }
 
         List<T> matches = this.resource.stream()
-                .map(resourceStr -> {
-                    T resourceConst = helper.mkStringConst(VarKey.RESOURCE.toString());
-                    return helper.mkReMatch(resourceConst, resourceStr);
-                })
+                .map(resourceStr -> helper.mkReMatch(VarKey.RESOURCE.toString(), resourceStr))
                 .toList();
         return helper.or(matches);
     }

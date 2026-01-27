@@ -42,7 +42,7 @@ public class Finding<T> implements GrammarlyAPI<T> {
 
         if (this.encodedExpr == null) {
             List<T> exprs = this.finding.entrySet().stream()
-                    .map(e -> helper.mkReMatch(helper.mkStringConst(e.getKey().toString()), e.getValue()))
+                    .map(e -> helper.mkReMatch(e.getKey().toString(), e.getValue()))
                     .toList();
             this.encodedExpr = helper.and(exprs);
         }
