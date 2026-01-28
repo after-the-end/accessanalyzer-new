@@ -1,5 +1,6 @@
 package org.iam.common;
 
+import com.microsoft.z3.BoolExpr;
 import io.github.cvc5.Kind;
 import io.github.cvc5.Result;
 import io.github.cvc5.Solver;
@@ -144,6 +145,12 @@ public class CVC5Encoder implements EncodedAPI<Term> {
     }
 
     @Override
+    public Boolean checkIntersection(List<Term> exprs) {
+        Term intersectionExpr = tm.mkTerm(Kind.AND, exprs.toArray(new Term[0]));
+        return check(intersectionExpr);
+    }
+
+    @Override
     public Boolean greaterThan(Term lhs, Term rhs) {
         Term containsExpr = tm.mkTerm(Kind.AND, lhs, tm.mkTerm(Kind.NOT, rhs));
         Term coversExpr = tm.mkTerm(Kind.AND, tm.mkTerm(Kind.NOT, lhs), rhs);
@@ -151,8 +158,42 @@ public class CVC5Encoder implements EncodedAPI<Term> {
     }
 
     @Override
+    public Boolean greaterThan(String lhs, String rhs) {
+        if (lhs.equals("*")) {
+            return true;
+        }
+        if (rhs.equals("*")) {
+            return false;
+        }
+        if (lhs.equals(rhs)) {
+            return false;
+        }
+
+        Term lhsExpr = mkReMatch("tmp", lhs);
+        Term rhsExpr = mkReMatch("tmp", rhs);
+        return greaterThan(lhsExpr, rhsExpr);
+    }
+
+    @Override
     public Boolean greaterEquals(Term lhs, Term rhs) {
         Term coversExpr = tm.mkTerm(Kind.AND, tm.mkTerm(Kind.NOT, lhs), rhs);
         return !check(coversExpr);
+    }
+
+    @Override
+    public Boolean greaterEquals(String lhs, String rhs) {
+        if (lhs.equals("*")) {
+            return true;
+        }
+        if (rhs.equals("*")) {
+            return false;
+        }
+        if (lhs.equals(rhs)) {
+            return true;
+        }
+
+        Term lhsExpr = mkReMatch("tmp", lhs);
+        Term rhsExpr = mkReMatch("tmp", rhs);
+        return greaterEquals(lhsExpr, rhsExpr);
     }
 }

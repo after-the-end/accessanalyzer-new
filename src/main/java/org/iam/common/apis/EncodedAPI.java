@@ -32,9 +32,15 @@ public interface EncodedAPI<T> {
 
     Boolean check(T expr);
 
+    Boolean checkIntersection(List<T> exprs);
+
     Boolean greaterThan(T lhs, T rhs);
 
     Boolean greaterEquals(T lhs, T rhs);
+
+    Boolean greaterThan(String lhs, String rhs);
+
+    Boolean greaterEquals(String lhs, String rhs);
 
     // TODO: Maybe there are more methods whose parameters are String or GrammarlyAPI<T> waiting to be added.
 

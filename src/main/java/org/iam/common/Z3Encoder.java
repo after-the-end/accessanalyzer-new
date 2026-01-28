@@ -134,6 +134,15 @@ public class Z3Encoder implements EncodedAPI<BoolExpr> {
     }
 
     @Override
+    public Boolean checkIntersection(List<BoolExpr> exprs) {
+        solver.reset();
+        solver.add(exprs.toArray(new BoolExpr[0]));
+        Status status = solver.check();
+        assert (status != Status.UNKNOWN) : "Unable to solve the problem";
+        return status == Status.SATISFIABLE;
+    }
+
+    @Override
     public Boolean greaterThan(BoolExpr lhs, BoolExpr rhs) {
         BoolExpr containsExpr = ctx.mkAnd(lhs, ctx.mkNot(rhs));
         BoolExpr coversExpr = ctx.mkAnd(ctx.mkNot(lhs), rhs);
@@ -141,8 +150,42 @@ public class Z3Encoder implements EncodedAPI<BoolExpr> {
     }
 
     @Override
+    public Boolean greaterThan(String lhs, String rhs) {
+        if (lhs.equals("*")) {
+            return true;
+        }
+        if (rhs.equals("*")) {
+            return false;
+        }
+        if (lhs.equals(rhs)) {
+            return false;
+        }
+
+        BoolExpr lhsExpr = mkReMatch("tmp", lhs);
+        BoolExpr rhsExpr = mkReMatch("tmp", rhs);
+        return greaterThan(lhsExpr, rhsExpr);
+    }
+
+    @Override
     public Boolean greaterEquals(BoolExpr lhs, BoolExpr rhs) {
         BoolExpr coversExpr = ctx.mkAnd(ctx.mkNot(lhs), rhs);
         return !check(coversExpr);
+    }
+
+    @Override
+    public Boolean greaterEquals(String lhs, String rhs) {
+        if (lhs.equals(rhs)) {
+            return true;
+        }
+        if (rhs.equals("*")) {
+            return true;
+        }
+        if (lhs.equals("*")) {
+            return false;
+        }
+
+        BoolExpr lhsExpr = mkReMatch("tmp", lhs);
+        BoolExpr rhsExpr = mkReMatch("tmp", rhs);
+        return greaterEquals(lhsExpr, rhsExpr);
     }
 }
