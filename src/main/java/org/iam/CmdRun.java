@@ -1,5 +1,8 @@
 package org.iam;
 
+import org.iam.common.CVC5Encoder;
+import org.iam.common.Z3Encoder;
+import org.iam.common.apis.EncodedAPI;
 import org.iam.core.Miner;
 import org.iam.utils.Parameter;
 import org.iam.common.basetypes.Policy;
@@ -105,15 +108,21 @@ public class CmdRun {
         TimeMeasure timeMeasure = new TimeMeasure();
         Miner miner = new Miner();
 
-        Policy policy = PolicyParser.parseFile(inputPath);
+        Policy<?> policy = PolicyParser.parseFile(inputPath);
         Parameter.LOGGER.info("[1/5]  finish parser policy");
 
+        EncodedAPI<?> encoder;
+        if (Parameter.getActiveSolver().equals(Parameter.SolverType.CVC5)) {
+            encoder = new CVC5Encoder();
+        } else {
+            encoder = new Z3Encoder();
+        }
         long startTime = System.nanoTime();
-        Set<Finding> ansFindings = miner.mineIntent(policy, timeMeasure);
+        Set<Finding<?>> ansFindings = miner.mineIntent(policy, timeMeasure, encoder);
         Parameter.LOGGER.info("[3/5]  finish findings mining : " + ansFindings.size());
 
         if (Parameter.isReduced) {
-            ansFindings = miner.reduceIntent(policy, ansFindings);
+            ansFindings = miner.reduceIntent(policy, ansFindings, encoder);
             Parameter.LOGGER.info("[5/5]  finish findings reduction : " + ansFindings.size());
         } else {
             Parameter.LOGGER.info("[4/5]  successful generate file");
