@@ -1,13 +1,9 @@
 package org.iam.common;
 
-import com.microsoft.z3.BoolExpr;
-import io.github.cvc5.Kind;
-import io.github.cvc5.Result;
-import io.github.cvc5.Solver;
-import io.github.cvc5.Term;
-import io.github.cvc5.TermManager;
+import io.github.cvc5.*;
 import org.iam.common.apis.EncodedAPI;
 import org.iam.common.apis.GrammarlyAPI;
+import org.iam.common.vars.VarKey;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,10 +44,93 @@ public class CVC5Encoder implements EncodedAPI<Term> {
         Term keyConst = variableCache.computeIfAbsent(key, k -> tm.mkConst(tm.getStringSort(), k));
 
         if (regex.equals("?")) {
-            Term emptyStr = tm.mkString("");
-            return tm.mkTerm(Kind.NOT, tm.mkTerm(Kind.EQUAL, keyConst, emptyStr));
+            return tm.mkTerm(Kind.NOT, tm.mkTerm(Kind.EQUAL, keyConst, tm.mkString("")));
         }
         return tm.mkTerm(Kind.STRING_IN_REGEXP, keyConst, mkRegex(regex));
+    }
+
+    @Override
+    public Term mkStringEq(String key, String value) {
+        Term keyConst = variableCache.computeIfAbsent(key, k -> tm.mkConst(tm.getStringSort(), k));
+        return tm.mkTerm(Kind.EQUAL, keyConst, tm.mkString(value));
+    }
+
+    @Override
+    public Term mkStringEqIgnoreCase(String key, String value) {
+        Term keyConst = variableCache.computeIfAbsent(key, k -> tm.mkConst(tm.getStringSort(), k));
+
+        if (value.isEmpty()) {
+             return tm.mkTerm(Kind.EQUAL, keyConst, tm.mkString(""));
+        }
+
+        List<Term> charRes = new ArrayList<>();
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            String lower = String.valueOf(Character.toLowerCase(c));
+            String upper = String.valueOf(Character.toUpperCase(c));
+
+            Term r1 = tm.mkTerm(Kind.STRING_TO_REGEXP, tm.mkString(lower));
+            if (!lower.equals(upper)) {
+                Term r2 = tm.mkTerm(Kind.STRING_TO_REGEXP, tm.mkString(upper));
+                // Union: matches r1 OR r2 (e.g., 'a' | 'A')
+                charRes.add(tm.mkTerm(Kind.REGEXP_UNION, r1, r2));
+            } else {
+                charRes.add(r1);
+            }
+        }
+
+        Term fullRe;
+        if (charRes.size() == 1) {
+            fullRe = charRes.get(0);
+        } else {
+            fullRe = tm.mkTerm(Kind.REGEXP_CONCAT, charRes.toArray(new Term[0]));
+        }
+
+        return tm.mkTerm(Kind.STRING_IN_REGEXP, keyConst, fullRe);
+    }
+
+    @Override
+    public Term mkIpMatch(String key, String cidr) {
+        try {
+            String[] parts = cidr.split("/");
+            String ipPart = parts[0];
+            int prefixLength = parts.length > 1 ? Integer.parseInt(parts[1]) : 32;
+
+            long ipLong = ipToLong(ipPart);
+            long maskLong = (0xFFFFFFFFL << (32 - prefixLength)) & 0xFFFFFFFFL;
+            long networkLong = ipLong & maskLong;
+
+            Term ipVar = variableCache.computeIfAbsent(key + "_bv",
+                    k -> {
+                        try {
+                            return tm.mkConst(tm.mkBitVectorSort(32), key);
+                        } catch (CVC5ApiException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+
+            Term mask = tm.mkBitVector(32, maskLong);
+            Term network = tm.mkBitVector(32, networkLong);
+
+            // Logic: (IP & Mask) == Network
+            Term maskedIp = tm.mkTerm(Kind.BITVECTOR_AND, ipVar, mask);
+            return tm.mkTerm(Kind.EQUAL, maskedIp, network);
+        } catch (Exception e) {
+            return mkFalse();
+        }
+    }
+
+    private long ipToLong(String ip) {
+        String[] octets = ip.split("\\.");
+        if (octets.length != 4) {
+             throw new IllegalArgumentException("Invalid IP address: " + ip);
+        }
+        long result = 0;
+        for (int i = 0; i < 4; i++) {
+            result <<= 8;
+            result |= Integer.parseInt(octets[i]);
+        }
+        return result;
     }
 
     private Term mkRegex(String regex) {
@@ -158,20 +237,29 @@ public class CVC5Encoder implements EncodedAPI<Term> {
     }
 
     @Override
-    public Boolean greaterThan(String lhs, String rhs) {
-        if (lhs.equals("*")) {
-            return true;
-        }
+    public Boolean greaterThan(VarKey key, String lhs, String rhs) {
         if (rhs.equals("*")) {
             return false;
+        }
+        if (lhs.equals("*")) {
+            return true;
         }
         if (lhs.equals(rhs)) {
             return false;
         }
 
-        Term lhsExpr = mkReMatch("tmp", lhs);
-        Term rhsExpr = mkReMatch("tmp", rhs);
-        return greaterThan(lhsExpr, rhsExpr);
+        switch (key) {
+            case AWS_SOURCE_IP -> {
+                Term lhsExpr = mkIpMatch("tmp", lhs);
+                Term rhsExpr = mkIpMatch("tmp", rhs);
+                return greaterThan(lhsExpr, rhsExpr);
+            }
+            default -> {
+                Term lhsExpr = mkReMatch("tmp", lhs);
+                Term rhsExpr = mkReMatch("tmp", rhs);
+                return greaterThan(lhsExpr, rhsExpr);
+            }
+        }
     }
 
     @Override
@@ -181,19 +269,28 @@ public class CVC5Encoder implements EncodedAPI<Term> {
     }
 
     @Override
-    public Boolean greaterEquals(String lhs, String rhs) {
-        if (lhs.equals("*")) {
+    public Boolean greaterEquals(VarKey key, String lhs, String rhs) {
+        if (lhs.equals(rhs)) {
             return true;
         }
         if (rhs.equals("*")) {
             return false;
         }
-        if (lhs.equals(rhs)) {
+        if (lhs.equals("*")) {
             return true;
         }
 
-        Term lhsExpr = mkReMatch("tmp", lhs);
-        Term rhsExpr = mkReMatch("tmp", rhs);
-        return greaterEquals(lhsExpr, rhsExpr);
+        switch (key) {
+            case AWS_SOURCE_IP -> {
+                Term lhsExpr = mkIpMatch("tmp", lhs);
+                Term rhsExpr = mkIpMatch("tmp", rhs);
+                return greaterEquals(lhsExpr, rhsExpr);
+            }
+            default -> {
+                Term lhsExpr = mkReMatch("tmp", lhs);
+                Term rhsExpr = mkReMatch("tmp", rhs);
+                return greaterEquals(lhsExpr, rhsExpr);
+            }
+        }
     }
 }

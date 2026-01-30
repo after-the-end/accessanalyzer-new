@@ -11,7 +11,7 @@ public enum VarKey implements StringComparableEnum {
     /**
      * From Principal
      */
-    IAM("IAM"), SERVICE("Service"), FEDERATED("Federated"),
+    AWS("AWS"), IAM("IAM"), SERVICE("Service"), FEDERATED("Federated"),
     /**
      * From Action
      */

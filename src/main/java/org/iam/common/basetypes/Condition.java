@@ -5,9 +5,7 @@ import org.iam.common.apis.GrammarlyAPI;
 import org.iam.common.vars.VarKey;
 import org.iam.common.vars.VarOperator;
 
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 public class Condition<T> implements GrammarlyAPI<T> {
     private VarOperator operator;
@@ -49,16 +47,55 @@ public class Condition<T> implements GrammarlyAPI<T> {
     @Override
     public final T encode(EncodedAPI<T> helper) {
         if (this.cachedExpr == null) {
+            String keyStr = this.key.toString();
+            List<T> subExprs = new ArrayList<>();
+
             switch (this.operator) {
-                // TODO: Implement the encoding logic for each operator.
-                case STRING_EQUALS, STRING_EQUALS_IF_EXISTS, FOR_ALL_VALUES_STRING_EQUALS, FOR_ANY_VALUE_STRING_EQUALS -> {}
-                case STRING_NOT_EQUALS, STRING_NOT_EQUALS_IF_EXISTS, FOR_ALL_VALUES_STRING_NOT_EQUALS, FOR_ANY_VALUE_STRING_NOT_EQUALS -> {}
-                case STRING_EQUALS_IGNORE_CASE, STRING_EQUALS_IGNORE_CASE_IF_EXISTS, FOR_ALL_VALUES_STRING_EQUALS_IGNORE_CASE, FOR_ANY_VALUE_STRING_EQUALS_IGNORE_CASE -> {}
-                case STRING_NOT_EQUALS_IGNORE_CASE, STRING_NOT_EQUALS_IGNORE_CASE_IF_EXISTS, FOR_ALL_VALUES_STRING_NOT_EQUALS_IGNORE_CASE, FOR_ANY_VALUE_STRING_NOT_EQUALS_IGNORE_CASE -> {}
-                case STRING_LIKE, STRING_MATCH, STRING_MATCH_IF_EXISTS, FOR_ALL_VALUES_STRING_MATCH, FOR_ANY_VALUE_STRING_MATCH, ARN_LIKE -> {}
-                case STRING_NOT_LIKE, STRING_NOT_MATCH, STRING_NOT_MATCH_IF_EXISTS, FOR_ALL_VALUES_STRING_NOT_MATCH, FOR_ANY_VALUE_STRING_NOT_MATCH, ARN_NOT_LIKE -> {}
-                case IP_ADDRESS, IP_ADDRESS_IF_EXISTS -> {}
-                case NOT_IP_ADDRESS, NOT_IP_ADDRESS_IF_EXISTS -> {}
+                // Strict String Equality: treat * and ? as literals
+                case STRING_EQUALS, STRING_EQUALS_IF_EXISTS,
+                     FOR_ALL_VALUES_STRING_EQUALS, FOR_ANY_VALUE_STRING_EQUALS -> {
+                    for (String val : values) subExprs.add(helper.mkStringEq(keyStr, val));
+                    this.cachedExpr = helper.or(subExprs);
+                }
+
+                case STRING_NOT_EQUALS, STRING_NOT_EQUALS_IF_EXISTS,
+                     FOR_ALL_VALUES_STRING_NOT_EQUALS, FOR_ANY_VALUE_STRING_NOT_EQUALS -> {
+                    for (String val : values) subExprs.add(helper.not(helper.mkStringEq(keyStr, val)));
+                    this.cachedExpr = helper.and(subExprs);
+                }
+
+                case STRING_EQUALS_IGNORE_CASE, STRING_EQUALS_IGNORE_CASE_IF_EXISTS,
+                     FOR_ALL_VALUES_STRING_EQUALS_IGNORE_CASE, FOR_ANY_VALUE_STRING_EQUALS_IGNORE_CASE -> {
+                     for (String val : values) subExprs.add(helper.mkStringEqIgnoreCase(keyStr, val));
+                     this.cachedExpr = helper.or(subExprs);
+                }
+                case STRING_NOT_EQUALS_IGNORE_CASE, STRING_NOT_EQUALS_IGNORE_CASE_IF_EXISTS,
+                     FOR_ALL_VALUES_STRING_NOT_EQUALS_IGNORE_CASE, FOR_ANY_VALUE_STRING_NOT_EQUALS_IGNORE_CASE -> {
+                     for (String val : values) subExprs.add(helper.not(helper.mkStringEqIgnoreCase(keyStr, val)));
+                     this.cachedExpr = helper.and(subExprs);
+                }
+
+                case STRING_LIKE, STRING_MATCH, STRING_MATCH_IF_EXISTS,
+                     FOR_ALL_VALUES_STRING_MATCH, FOR_ANY_VALUE_STRING_MATCH, ARN_LIKE -> {
+                    for (String val : values) subExprs.add(helper.mkReMatch(keyStr, val));
+                    this.cachedExpr = helper.or(subExprs);
+                }
+
+                case STRING_NOT_LIKE, STRING_NOT_MATCH, STRING_NOT_MATCH_IF_EXISTS,
+                     FOR_ALL_VALUES_STRING_NOT_MATCH, FOR_ANY_VALUE_STRING_NOT_MATCH, ARN_NOT_LIKE -> {
+                    for (String val : values) subExprs.add(helper.not(helper.mkReMatch(keyStr, val)));
+                    this.cachedExpr = helper.and(subExprs);
+                }
+
+                case IP_ADDRESS, IP_ADDRESS_IF_EXISTS -> {
+                    for (String val : values) subExprs.add(helper.mkIpMatch(keyStr, val));
+                    this.cachedExpr = helper.or(subExprs);
+                }
+
+                case NOT_IP_ADDRESS, NOT_IP_ADDRESS_IF_EXISTS -> {
+                    for (String val : values) subExprs.add(helper.not(helper.mkIpMatch(keyStr, val)));
+                    this.cachedExpr = helper.and(subExprs);
+                }
             }
         }
         return this.cachedExpr;

@@ -19,12 +19,12 @@ public class DynamicVar<T> {
     }
 
     public DynamicVar<T> inter(DynamicVar<T> other) {
-        T interTerm = encoder.and(this.value, other.value);
+        T interTerm = encoder.and(List.of(this.value, other.value));
         return new DynamicVar<>(encoder, interTerm);
     }
 
     public DynamicVar<T> minus(DynamicVar<T> other) {
-        T minusTerm = encoder.and(this.value, encoder.not(other.value));
+        T minusTerm = encoder.and(List.of(this.value, encoder.not(other.value)));
         return new DynamicVar<>(encoder, minusTerm);
     }
 

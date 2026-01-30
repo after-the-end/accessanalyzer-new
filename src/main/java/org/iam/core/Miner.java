@@ -43,6 +43,9 @@ public class Miner {
 
         workList.add(rootFinding);
         while (!workList.isEmpty()) {
+
+            long startTime = System.nanoTime();
+
             Finding<T> currentFinding = workList.poll();
             if (encoder.checkIntersection(List.of(policy.encode(encoder), currentFinding.reduce(relations, encoder)))) {
                 Boolean allNotContain = true;
@@ -81,6 +84,9 @@ public class Miner {
                     }
                 }
             }
+
+            long endTime = System.nanoTime();
+            timeMeasure.addRound(endTime - startTime);
         }
         return results;
     }

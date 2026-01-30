@@ -3,10 +3,12 @@ package org.iam.common;
 import com.microsoft.z3.*;
 import org.iam.common.apis.EncodedAPI;
 import org.iam.common.apis.GrammarlyAPI;
+import org.iam.common.vars.VarKey;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 public class Z3Encoder implements EncodedAPI<BoolExpr> {
 
@@ -37,6 +39,82 @@ public class Z3Encoder implements EncodedAPI<BoolExpr> {
             return ctx.mkNot(ctx.mkEq(ctx.mkConst(key, ctx.getStringSort()), ctx.mkString("")));
         }
         return ctx.mkInRe(ctx.mkConst(key, ctx.getStringSort()), mkRegex(regex));
+    }
+
+    @Override
+    public BoolExpr mkStringEq(String key, String value) {
+        // Strict string equality
+        return ctx.mkEq(ctx.mkConst(key, ctx.getStringSort()), ctx.mkString(value));
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public BoolExpr mkStringEqIgnoreCase(String key, String value) {
+        if (value.isEmpty()) {
+            return mkStringEq(key, value);
+        }
+
+        List<ReExpr<SeqSort<CharSort>>> charRes = new ArrayList<>();
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            String lower = String.valueOf(Character.toLowerCase(c));
+            String upper = String.valueOf(Character.toUpperCase(c));
+
+            ReExpr<SeqSort<CharSort>> r1 = ctx.mkToRe(ctx.mkString(lower));
+
+            if (!lower.equals(upper)) {
+                ReExpr<SeqSort<CharSort>> r2 = ctx.mkToRe(ctx.mkString(upper));
+                charRes.add(ctx.mkUnion(r1, r2));
+            } else {
+                charRes.add(r1);
+            }
+        }
+
+        ReExpr<SeqSort<CharSort>> fullRe;
+        if (charRes.size() == 1) {
+            fullRe = charRes.get(0);
+        } else {
+            fullRe = ctx.mkConcat(
+                    (ReExpr<SeqSort<CharSort>>[]) charRes.toArray(new ReExpr[0])
+            );
+        }
+
+        return ctx.mkInRe(ctx.mkConst(key, ctx.getStringSort()), fullRe);
+    }
+
+    // ... [mkIpMatch, ipToLong, mkRegex, and, or, not, check methods kept as is] ...
+    @Override
+    public BoolExpr mkIpMatch(String key, String cidr) {
+        try {
+            String[] parts = cidr.split("/");
+            String ipPart = parts[0];
+            int prefixLength = parts.length > 1 ? Integer.parseInt(parts[1]) : 32;
+
+            long ipLong = ipToLong(ipPart);
+            long maskLong = (0xFFFFFFFFL << (32 - prefixLength)) & 0xFFFFFFFFL;
+            long networkLong = ipLong & maskLong;
+
+            BitVecExpr ipVar = ctx.mkBVConst(key, 32);
+            BitVecNum mask = ctx.mkBV(maskLong, 32);
+            BitVecNum network = ctx.mkBV(networkLong, 32);
+
+            return ctx.mkEq(ctx.mkBVAND(ipVar, mask), network);
+        } catch (Exception e) {
+            return mkFalse();
+        }
+    }
+
+    private long ipToLong(String ip) {
+        String[] octets = ip.split("\\.");
+        if (octets.length != 4) {
+             throw new IllegalArgumentException("Invalid IP address: " + ip);
+        }
+        long result = 0;
+        for (int i = 0; i < 4; i++) {
+            result <<= 8;
+            result |= Integer.parseInt(octets[i]);
+        }
+        return result;
     }
 
     @SuppressWarnings("unchecked")
@@ -77,8 +155,11 @@ public class Z3Encoder implements EncodedAPI<BoolExpr> {
     }
 
     @Override
-    public BoolExpr and(List<BoolExpr> epxrs) {
-        return ctx.mkAnd(epxrs.toArray(new BoolExpr[0]));
+    public BoolExpr and(List<BoolExpr> exprs) {
+        List<BoolExpr> newExprs = exprs.stream()
+                .filter(Objects::nonNull)
+                .toList();
+        return ctx.mkAnd(newExprs.toArray(new BoolExpr[0]));
     }
 
     @Override
@@ -150,20 +231,25 @@ public class Z3Encoder implements EncodedAPI<BoolExpr> {
     }
 
     @Override
-    public Boolean greaterThan(String lhs, String rhs) {
-        if (lhs.equals("*")) {
-            return true;
-        }
+    public Boolean greaterThan(VarKey key, String lhs, String rhs) {
         if (rhs.equals("*")) {
             return false;
+        }
+        if (lhs.equals("*")) {
+            return true;
         }
         if (lhs.equals(rhs)) {
             return false;
         }
 
-        BoolExpr lhsExpr = mkReMatch("tmp", lhs);
-        BoolExpr rhsExpr = mkReMatch("tmp", rhs);
-        return greaterThan(lhsExpr, rhsExpr);
+        switch(key) {
+            case AWS_SOURCE_IP -> {
+                return greaterThan(mkIpMatch("tmp", lhs), mkIpMatch("tmp", rhs));
+            }
+            default -> {
+                return greaterThan(mkReMatch("tmp", lhs), mkReMatch("tmp", rhs));
+            }
+        }
     }
 
     @Override
@@ -173,19 +259,28 @@ public class Z3Encoder implements EncodedAPI<BoolExpr> {
     }
 
     @Override
-    public Boolean greaterEquals(String lhs, String rhs) {
+    public Boolean greaterEquals(VarKey key, String lhs, String rhs) {
         if (lhs.equals(rhs)) {
             return true;
         }
         if (rhs.equals("*")) {
-            return true;
-        }
-        if (lhs.equals("*")) {
             return false;
         }
+        if (lhs.equals("*")) {
+            return true;
+        }
 
-        BoolExpr lhsExpr = mkReMatch("tmp", lhs);
-        BoolExpr rhsExpr = mkReMatch("tmp", rhs);
-        return greaterEquals(lhsExpr, rhsExpr);
+        switch (key) {
+            case AWS_SOURCE_IP -> {
+                BoolExpr lhsExpr = mkIpMatch("tmp", lhs);
+                BoolExpr rhsExpr = mkIpMatch("tmp", rhs);
+                return greaterEquals(lhsExpr, rhsExpr);
+            }
+            default -> {
+                BoolExpr lhsExpr = mkReMatch("tmp", lhs);
+                BoolExpr rhsExpr = mkReMatch("tmp", rhs);
+                return greaterEquals(lhsExpr, rhsExpr);
+            }
+        }
     }
 }

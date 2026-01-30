@@ -109,6 +109,7 @@ public class CmdRun {
         Miner miner = new Miner();
 
         Policy<?> policy = PolicyParser.parseFile(inputPath);
+        System.out.println(policy);
         Parameter.LOGGER.info("[1/5]  finish parser policy");
 
         EncodedAPI<?> encoder;

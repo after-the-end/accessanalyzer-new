@@ -17,11 +17,25 @@ public class KvRelations {
 
         Map<VarKey, Set<String>> kvMaps = policy.getKvMap();
         for (VarKey key : kvMaps.keySet()) {
-            kvMaps.get(key).add("*");
+            kvMaps.get(key).add(
+                    switch (key) {
+                        case AWS_SOURCE_IP ->  "0.0.0.0/0";
+                        default -> "*";
+                    }
+            );
         }
 
         for (VarKey key : kvMaps.keySet()) {
+            allRelations.put(key, new HashMap<>());
+            allIdoms.put(key, new HashMap<>());
+            for (String value : kvMaps.get(key)) {
+                allRelations.get(key).put(value, new HashSet<>());
+                allIdoms.get(key).put(value, new HashSet<>());
+            }
+            addRelationFromSet(key, kvMaps.getOrDefault(key, Collections.emptySet()), encoder);
         }
+
+        addAllIdoms();
     }
 
     public final Set<String> idom(VarKey key, String value) {
@@ -40,12 +54,16 @@ public class KvRelations {
 
         for (String str1 : values) {
             for (String str2 : values) {
+                if (str1.equals(str2)) {
+                    continue;
+                }
+
                 if (this.allRelations.getOrDefault(key, Collections.emptyMap()).getOrDefault(str1, Collections.emptySet()).contains(str2)
             || this.allRelations.getOrDefault(key, Collections.emptyMap()).getOrDefault(str2, Collections.emptySet()).contains(str1)) {
                     continue;
                 }
 
-                if (encoder.greaterThan(str1, str2)) {
+                if (encoder.greaterThan(key, str1, str2)) {
                     addRelation(key, str1, str2);
                 }
             }
@@ -53,9 +71,9 @@ public class KvRelations {
     }
 
     private void addAllIdoms() {
-        for (VarKey key : allIdoms.keySet()) {
-            for (String greater : allIdoms.getOrDefault(key, new HashMap<>()).keySet()) {
-                Set<String> smallerSet = allIdoms.getOrDefault(key, new HashMap<>()).get(greater);
+        for (VarKey key : allRelations.keySet()) {
+            for (String greater : allRelations.getOrDefault(key, new HashMap<>()).keySet()) {
+                Set<String> smallerSet = allRelations.getOrDefault(key, new HashMap<>()).get(greater);
                 for (String smaller : smallerSet) {
                     boolean isIdom = true;
                     for (String intermediate : smallerSet) {

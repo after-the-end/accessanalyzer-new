@@ -22,7 +22,7 @@ public class JsonFindings {
     private final Set<JsonFindings.JsonFinding> findings;
 
     private static final Set<VarKey> PRINCIPAL_KEYS = EnumSet.of(
-            VarKey.IAM, VarKey.SERVICE, VarKey.FEDERATED
+            VarKey.AWS, VarKey.IAM, VarKey.SERVICE, VarKey.FEDERATED
     );
 
     public JsonFindings(Set<Finding<?>> findingSet) {

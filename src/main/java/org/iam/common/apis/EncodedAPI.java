@@ -1,5 +1,7 @@
 package org.iam.common.apis;
 
+import org.iam.common.vars.VarKey;
+
 import java.util.List;
 
 /**
@@ -12,7 +14,17 @@ public interface EncodedAPI<T> {
 
     T mkTrue();
 
+    // For StringLike (Handle * and ?)
     T mkReMatch(String key, String regex);
+
+    // For StringEquals (Exact literal match, treat * as *)
+    T mkStringEq(String key, String value);
+
+    // For StringEqualsIgnoreCase (Case insensitive match)
+    T mkStringEqIgnoreCase(String key, String value);
+
+    // For IpAddress (CIDR)
+    T mkIpMatch(String key, String cidr);
 
     T and(List<T> exprs);
 
@@ -38,9 +50,9 @@ public interface EncodedAPI<T> {
 
     Boolean greaterEquals(T lhs, T rhs);
 
-    Boolean greaterThan(String lhs, String rhs);
+    Boolean greaterThan(VarKey key, String lhs, String rhs);
 
-    Boolean greaterEquals(String lhs, String rhs);
+    Boolean greaterEquals(VarKey key, String lhs, String rhs);
 
     // TODO: Maybe there are more methods whose parameters are String or GrammarlyAPI<T> waiting to be added.
 

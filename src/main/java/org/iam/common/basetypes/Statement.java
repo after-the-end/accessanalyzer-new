@@ -34,6 +34,9 @@ public class Statement<T> implements GrammarlyAPI<T> {
     @JsonIgnore
     private T cachedExpr = null;
 
+    public Statement() {
+    }
+
     public Statement(Statement<T> other) {
         this.effect = other.effect;
         this.principal = other.principal;

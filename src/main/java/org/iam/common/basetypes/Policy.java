@@ -23,6 +23,9 @@ public class Policy<T> implements GrammarlyAPI<T> {
     @JsonIgnore
     private T encodedExpr = null;
 
+    public Policy() {
+    }
+
     public Policy(Policy<T> other) {
         this.version = other.version;
         this.statements = other.statements;
@@ -67,15 +70,15 @@ public class Policy<T> implements GrammarlyAPI<T> {
         for (Statement<T> statement : this.statements) {
             Map<VarKey, Set<String>> principals = statement.getPrincipal();
             for (VarKey key : principals.keySet()) {
-                kvMap.computeIfAbsent(key, k -> new HashSet<>()).addAll(principals.get(key));
+                newKvMap.computeIfAbsent(key, k -> new HashSet<>()).addAll(principals.get(key));
             }
-            kvMap.computeIfAbsent(VarKey.ACTION, k -> new HashSet<>()).addAll(statement.getAction());
-            kvMap.computeIfAbsent(VarKey.RESOURCE, k -> new HashSet<>()).addAll(statement.getResource());
+            newKvMap.computeIfAbsent(VarKey.ACTION, k -> new HashSet<>()).addAll(statement.getAction());
+            newKvMap.computeIfAbsent(VarKey.RESOURCE, k -> new HashSet<>()).addAll(statement.getResource());
             for (Condition<T> condition : statement.getCondition()) {
-                kvMap.computeIfAbsent(condition.getKey(), k -> new HashSet<>()).addAll(condition.getValues());
+                newKvMap.computeIfAbsent(condition.getKey(), k -> new HashSet<>()).addAll(condition.getValues());
             }
         }
-        return kvMap;
+        return newKvMap;
     }
 
     @Override
@@ -110,6 +113,11 @@ public class Policy<T> implements GrammarlyAPI<T> {
         if (this == o) return true;
         if (!(o instanceof Policy<?> policy)) return false;
         return Objects.equals(version, policy.version) && Objects.equals(statements, policy.statements);
+    }
+
+    @Override
+    public String toString() {
+        return PolicyParser.toString(this);
     }
 
     @Override

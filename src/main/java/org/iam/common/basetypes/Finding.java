@@ -16,8 +16,11 @@ public class Finding<T> implements GrammarlyAPI<T> {
     public Finding(Policy<T> policy) {
         this.finding = new HashMap<>();
         for (VarKey key : policy.keySet()) {
-            // all the key of the root finding get a '.*' value
-            this.finding.putIfAbsent(key, ".*");
+            this.finding.putIfAbsent(key,
+                    switch (key) {
+                        case AWS_SOURCE_IP -> "0.0.0.0/0";
+                        default -> "*";
+                    });
         }
     }
 
@@ -50,13 +53,23 @@ public class Finding<T> implements GrammarlyAPI<T> {
                                     if (idomValue == null) {
                                         return helper.mkFalse();
                                     }
-                                    return helper.mkReMatch(key.toString(), idomValue);
+                                    return switch (key) {
+                                        case AWS_SOURCE_IP ->
+                                                helper.mkIpMatch(key.toString(), idomValue);
+                                        default ->
+                                                helper.mkReMatch(key.toString(), idomValue);
+                                    };
                                 }).toList();
                         idomExpr = helper.or(idomExprs);
                     }
-                    T reducedExpr = helper.mkReMatch(key.toString(), value);
+                    T reducedExpr = switch (key) {
+                        case AWS_SOURCE_IP ->
+                                helper.mkIpMatch(key.toString(), value);
+                        default ->
+                                helper.mkReMatch(key.toString(), value);
+                    };
                     if (idomExpr != null) {
-                        reducedExpr = helper.and(reducedExpr, helper.not(idomExpr));
+                        reducedExpr = helper.and(Arrays.asList(reducedExpr, helper.not(idomExpr)));
                     }
                     return reducedExpr;
                 }).toList();

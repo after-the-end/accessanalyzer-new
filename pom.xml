@@ -109,6 +109,32 @@
 
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>unpack-local-libraries</id>
+                        <phase>prepare-package</phase>
+                        <configuration>
+                            <target>
+                                <echo message="Unpacking local system jars into classes directory..."/>
+                                <!-- 解压 Z3 JAR -->
+                                <unzip src="${project.basedir}/lib/z3-4.14.1/bin/com.microsoft.z3.jar"
+                                       dest="${project.build.directory}/classes"/>
+                                <!-- 解压 CVC5 JAR -->
+                                <unzip src="${project.basedir}/lib/cvc5-1.2.1/cvc5-1.2.1-linux-x86_64.jar"
+                                       dest="${project.build.directory}/classes"/>
+                            </target>
+                        </configuration>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
                 <version>${maven.dependency.plugin.version}</version>
             </plugin>
@@ -120,7 +146,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>org.orion.Main</mainClass>
+                            <mainClass>org.iam.Main</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
@@ -139,6 +165,16 @@
                         <configuration>
                             <shadedArtifactAttached>true</shadedArtifactAttached>
                             <shadedClassifierName>uber</shadedClassifierName>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>org.iam.Main</mainClass>
